@@ -52,6 +52,8 @@ var (
 		jpegQuality    int
 
 		threads int
+
+		debug bool
 	}
 )
 
@@ -70,6 +72,8 @@ func init() {
 	flag.IntVar(&argv.jpegQuality, `jpeg-qual`, 90, `jpeg quality (0 - worst, 100 - best)`)
 
 	flag.IntVar(&argv.threads, `threads`, 1, `thread pool size`)
+
+	flag.BoolVar(&argv.debug, `debug`, false, `print output of failed tasks`)
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s: [options] /path/to/src.heif /path/to/dst.(png|jpg)\n", os.Args[0])
@@ -101,7 +105,8 @@ func main() {
 
 	info, err := heifGetInfo(srcFile)
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, `Cannot get heif properties`, err)
+		return
 	}
 	if info.Tiles == 1 {
 		info.Cols = 1
@@ -118,7 +123,8 @@ func main() {
 		}()
 	}
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, `Cannot convert hevc to hevc`, err)
+		return
 	}
 
 	type QueueItem struct {
@@ -164,6 +170,11 @@ func main() {
 	}
 	wg.Wait()
 
+	if processError != nil {
+		fmt.Fprintln(os.Stderr, `Cannot decode hevc`, processError)
+		return
+	}
+
 	// поворот
 	if info.Rotation != 0 {
 		dstImg = imaging.Rotate(dstImg, float64(info.Rotation), color.Alpha{})
@@ -203,7 +214,9 @@ func heifGetInfo(srcFile string) (info HeifInfo, err error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, `heif2hevc -info fail:`, string(stderr.Bytes()))
+		if argv.debug {
+			fmt.Fprintln(os.Stderr, `heif2hevc -info fail:`, string(stderr.Bytes()))
+		}
 		return info, errors.Wrap(err, `exec heif2hevc -info fail`)
 	}
 
@@ -249,7 +262,9 @@ func heif2hevc(srcFile, dstFile string) (dstFiles []string, err error) {
 	}()
 
 	if out, err := exec.Command(argv.heif2hevcPath, srcFile, dstFileTmp).CombinedOutput(); err != nil {
-		fmt.Fprintln(os.Stderr, `heif2hevc fail:`, string(out))
+		if argv.debug {
+			fmt.Fprintln(os.Stderr, `heif2hevc fail:`, string(out))
+		}
 		return nil, errors.Wrap(err, `exec heif2hevc fail`)
 	}
 
@@ -263,14 +278,18 @@ func hevc2Image(srcFile string) (img image.Image, err error) {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, `ffmpeg fail:`, string(stderr.Bytes()))
+		if argv.debug {
+			fmt.Fprintln(os.Stderr, `ffmpeg fail:`, string(stderr.Bytes()))
+		}
 		return nil, errors.Wrap(err, `ffmpeg fail`)
 	}
 
 	bb := stdout.Bytes()
 
 	if img, err = png.Decode(&stdout); err != nil {
-		fmt.Fprintln(os.Stderr, `ffmpeg fail:`, string(bb))
+		if argv.debug {
+			fmt.Fprintln(os.Stderr, `png decode fail:`, string(bb))
+		}
 		err = errors.Wrap(err, `png decode fail`)
 	}
 
