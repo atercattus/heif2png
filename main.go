@@ -258,7 +258,7 @@ func heif2hevc(srcFile, dstFile string) (dstFiles []string, err error) {
 
 func hevc2Image(srcFile string) (img image.Image, err error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(argv.ffmpegPath, `-hide_banner`, `-f`, `hevc`, `-i`, srcFile, `-f`, `image2pipe`, `-vcodec`, `png`, `-`)
+	cmd := exec.Command(argv.ffmpegPath, `-f`, `hevc`, `-i`, srcFile, `-f`, `image2pipe`, `-vcodec`, `png`, `-`)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
