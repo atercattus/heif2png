@@ -86,16 +86,16 @@ func init() {
 func main() {
 	if argv.version {
 		fmt.Fprint(os.Stderr, buildVersion, "\n")
-		return
+		os.Exit(1)
 	} else if argv.help {
 		flag.Usage()
-		return
+		os.Exit(1)
 	} else if (argv.pngCompression < 0 || argv.pngCompression > 3) || (argv.jpegQuality < 0 || argv.jpegQuality > 100) {
 		flag.Usage()
-		return
+		os.Exit(1)
 	} else if len(flag.Args()) < 2 {
 		flag.Usage()
-		return
+		os.Exit(1)
 	}
 
 	argv.pngCompression = -argv.pngCompression // для формата image/png.CompressionLevel
@@ -106,7 +106,7 @@ func main() {
 	info, err := heifGetInfo(srcFile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, `Cannot get heif properties`, err)
-		return
+		os.Exit(1)
 	}
 	if info.Tiles == 1 {
 		info.Cols = 1
@@ -124,7 +124,7 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, `Cannot convert hevc to hevc`, err)
-		return
+		os.Exit(1)
 	}
 
 	type QueueItem struct {
@@ -172,7 +172,7 @@ func main() {
 
 	if processError != nil {
 		fmt.Fprintln(os.Stderr, `Cannot decode hevc`, processError)
-		return
+		os.Exit(1)
 	}
 
 	// поворот
@@ -183,6 +183,7 @@ func main() {
 	// итоговая картинка
 	if fd, err := os.Create(dstFile); err != nil {
 		fmt.Fprintln(os.Stderr, `Cannot create dst file`, err)
+		os.Exit(1)
 	} else {
 		ext := strings.ToLower(filepath.Ext(dstFile))
 		switch ext {
@@ -191,15 +192,18 @@ func main() {
 			encoder.CompressionLevel = png.CompressionLevel(argv.pngCompression)
 			if err := encoder.Encode(fd, dstImg); err != nil {
 				fmt.Fprintln(os.Stderr, `Cannot write dst file`, err)
+				os.Exit(1)
 			}
 		case `.jpg`, `.jpeg`:
 			var opt jpeg.Options
 			opt.Quality = argv.jpegQuality
 			if err := jpeg.Encode(fd, dstImg, &opt); err != nil {
 				fmt.Fprintln(os.Stderr, `Cannot write dst file`, err)
+				os.Exit(1)
 			}
 		default:
 			fmt.Fprintln(os.Stderr, `Unsupported dst file extension`, err)
+			os.Exit(1)
 		}
 
 		fd.Close()
